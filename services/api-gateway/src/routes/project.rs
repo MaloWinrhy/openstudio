@@ -1,14 +1,14 @@
 use axum::{
     extract::State,
-    Json,
-    routing::post,
-    Router,
-    handler::Handler, // Import Handler trait for with_state
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use core::usecases::project::create_project;
 use core::repositories::project_repository::ProjectRepository;
+use core::models::project::Project;
 
 #[derive(Deserialize)]
 pub struct CreateProjectInput {
@@ -16,20 +16,30 @@ pub struct CreateProjectInput {
     description: String,
 }
 
-pub fn project_routes<R: ProjectRepository + Send + Sync + 'static>(repo: Arc<R>) -> Router {
-    Router::new()
-        .route("/projects", post(handle_create_project::<R>))
-        .with_state(repo)
+#[derive(Clone)]
+pub struct AppState {
+    pub repo: Arc<dyn ProjectRepository + Send + Sync + 'static>,
 }
 
-async fn handle_create_project<R: ProjectRepository + Send + Sync + 'static>(
-    State(repo): State<Arc<R>>,
+pub fn project_routes() -> Router<AppState> {
+    Router::new()
+        .route("/projects", post(handle_create_project))
+}
+
+pub async fn list_projects(
+    State(state): State<AppState>,
+) -> Json<Vec<Project>> {
+    match state.repo.list() {
+        Ok(projects) => Json(projects),
+        Err(_) => Json(vec![]),
+    }
+}
+async fn handle_create_project(
+    State(state): State<AppState>,
     Json(payload): Json<CreateProjectInput>,
-) -> Result<Json<String>, (axum::http::StatusCode, String)> {
+) -> Result<Json<String>, (StatusCode, String)> {
     let project = create_project(&payload.name, &payload.description);
-
-    repo.save(project)
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
+    state.repo.save(project)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json("Project created successfully".into()))
 }
