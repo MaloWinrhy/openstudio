@@ -6,9 +6,10 @@ use axum::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use core::usecases::project::create_project;
-use core::repositories::project_repository::ProjectRepository;
-use core::models::project::Project;
+use openstudio_core::usecases::project::create_project;
+use openstudio_core::repositories::project_repository::ProjectRepository;
+use openstudio_core::models::project::Project;
+use openstudio_core::models::project_status;
 use uuid;
 use axum::response::IntoResponse;
 
@@ -18,8 +19,8 @@ use axum::response::IntoResponse;
 pub struct UpdateProjectInput {
     pub name: Option<String>,
     pub description: Option<String>,
-    pub status: Option<core::models::project_status::ProjectStatus>,
-    pub visibility: Option<core::models::project_status::Visibility>,
+    pub status: Option<project_status::ProjectStatus>,
+    pub visibility: Option<project_status::Visibility>,
 }
 
 #[derive(Deserialize)]
@@ -88,7 +89,7 @@ async fn update_project_by_id(
                 .unwrap();
         }
     };
-    let updated = core::models::project::Project {
+    let updated = Project {
         id,
         name: input.name.unwrap_or(existing.name),
         description: input.description.unwrap_or(existing.description),

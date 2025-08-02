@@ -1,3 +1,4 @@
+
 [package]
 name = "api-gateway"
 version = "0.1.0"
@@ -6,9 +7,17 @@ edition = "2024"
 [dependencies]
 uuid = { version = "1", features = ["v4", "serde"] }
 axum = "0.8.4"
+axum-extra = { version = "0.10", features = ["typed-header"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-core = { path = "../../crates/core" }
+openstudio-core = { path = "../../crates/openstudio-core" }
 hyper = "1.6.0"
 chrono = "0.4"
+jsonwebtoken = "9"
+headers = "0.4"
+async-trait = "0.1"
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+serde_json = "1"

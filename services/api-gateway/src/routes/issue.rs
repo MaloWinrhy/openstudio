@@ -1,8 +1,8 @@
 use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
 use serde::Deserialize;
 use std::sync::Arc;
-use core::models::issue::{Issue, IssueStatus};
-use core::repositories::issue_repository::IssueRepository;
+use openstudio_core::models::issue::{Issue, IssueStatus};
+use openstudio_core::repositories::issue_repository::IssueRepository;
 use uuid;
 use chrono::Utc;
 
