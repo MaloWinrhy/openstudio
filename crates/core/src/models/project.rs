@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::models::project_status::{ProjectStatus, Visibility};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Project {
     pub id: Uuid,
     pub name: String,
