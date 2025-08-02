@@ -1,6 +1,9 @@
+[workspace.dependencies]
+axum = "0.8.4"
+axum-extra = { version = "0.10", features = ["typed-header"] }
 [workspace]
 members = [
-    "crates/core",
+    "crates/openstudio-core",
     "crates/db",
     "crates/github",
     "crates/ai-helper",
