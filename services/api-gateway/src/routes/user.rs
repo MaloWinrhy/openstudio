@@ -9,6 +9,9 @@ const JWT_SECRET: &str = "supersecretkey";
 use serde::Deserialize;
 use std::sync::Arc;
 use openstudio_core::models::user::User;
+use argon2::{Argon2, PasswordHasher};
+use rand::rngs::OsRng;
+use argon2::password_hash::{SaltString, PasswordHash, PasswordVerifier};
 use uuid;
 use chrono::Utc;
 use openstudio_core::repositories::in_memory_user::InMemoryUserRepo;
@@ -33,6 +36,7 @@ pub struct UserState {
 pub fn user_routes() -> Router<UserState> {
     Router::new()
         .route("/users", post(create_user))
+        .route("/register", post(create_user))
         .route("/users", get(list_users_authenticated))
         .route("/users/{id}", get(get_user_by_id_authenticated))
 }
@@ -43,11 +47,15 @@ async fn create_user(
 ) -> axum::response::Response {
     use axum::body::Body;
     use axum::http::Response;
+    // Hash le mot de passe
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let password_hash = argon2.hash_password(input.password.as_bytes(), &salt).unwrap().to_string();
     let user = User {
         id: uuid::Uuid::new_v4(),
         username: input.username,
         email: input.email,
-        password: input.password,
+        password: password_hash,
         created_at: Utc::now(),
     };
     state.repo.save_user(user);
