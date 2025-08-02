@@ -1,9 +1,19 @@
+// --- ROUTER ---
+pub fn project_routes() -> axum::Router<AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/projects", post(handle_create_project))
+        .route("/projects", get(list_projects))
+        .route("/projects/{id}", get(get_project_by_id))
+        .route("/projects/{id}", axum::routing::delete(delete_project_by_id))
+        .route("/projects/{id}", axum::routing::put(update_project_by_id))
+}
 use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::{get, post},
-    Json, Router,
+    extract::{State, FromRequestParts},
+    http::{StatusCode, request::Parts},
+    Json,
 };
+use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::Deserialize;
 use std::sync::Arc;
 use openstudio_core::usecases::project::create_project;
@@ -11,10 +21,14 @@ use openstudio_core::repositories::project_repository::ProjectRepository;
 use openstudio_core::models::project::Project;
 use openstudio_core::models::project_status;
 use uuid;
-use axum::response::IntoResponse;
 
 
-// --- STRUCTS ---
+// --- STRUCTS & STATE ---
+#[derive(Clone)]
+pub struct AppState {
+    pub repo: Arc<dyn ProjectRepository + Send + Sync + 'static>,
+}
+
 #[derive(Deserialize)]
 pub struct UpdateProjectInput {
     pub name: Option<String>,
@@ -25,27 +39,39 @@ pub struct UpdateProjectInput {
 
 #[derive(Deserialize)]
 pub struct CreateProjectInput {
-    name: String,
-    description: String,
+    pub name: String,
+    pub description: String,
 }
 
-#[derive(Clone)]
-pub struct AppState {
-    pub repo: Arc<dyn ProjectRepository + Send + Sync + 'static>,
-}
+// --- AUTH EXTRACTOR ---
+pub struct AuthBearer;
 
-// --- ROUTER ---
-pub fn project_routes() -> Router<AppState> {
-    Router::new()
-        .route("/projects", post(handle_create_project))
-        .route("/projects", get(list_projects))
-        .route("/projects/{id}", get(get_project_by_id))
-        .route("/projects/{id}", axum::routing::delete(delete_project_by_id))
-        .route("/projects/{id}", axum::routing::put(update_project_by_id))
+impl<S> FromRequestParts<S> for AuthBearer
+where
+    S: Send + Sync,
+{
+    type Rejection = axum::response::Response;
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        if let Some(auth_header) = parts.headers.get("authorization") {
+            if let Ok(auth_str) = auth_header.to_str() {
+                if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                    let key = DecodingKey::from_secret(b"supersecretkey");
+                    if decode::<serde_json::Value>(token, &key, &Validation::default()).is_ok() {
+                        return Ok(AuthBearer);
+                    }
+                }
+            }
+        }
+        Err(axum::response::Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(axum::body::Body::from("Unauthorized"))
+            .unwrap())
+    }
 }
 
 // --- HANDLERS ---
 async fn delete_project_by_id(
+    _auth: AuthBearer,
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> axum::response::Response {
@@ -68,6 +94,7 @@ async fn delete_project_by_id(
 }
 
 async fn update_project_by_id(
+    _auth: AuthBearer,
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(input): Json<UpdateProjectInput>,
@@ -167,14 +194,22 @@ async fn list_projects(
     }
 }
 
-fn handle_create_project(
+async fn handle_create_project(
+    _auth: AuthBearer,
     State(state): State<AppState>,
     Json(payload): Json<CreateProjectInput>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Json<String>, (StatusCode, String)>> + Send>> {
-    Box::pin(async move {
-        let project = create_project(&payload.name, &payload.description);
-        state.repo.save(project)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        Ok(Json("Project created successfully".into()))
-    })
+) -> axum::response::Response {
+    use axum::body::Body;
+    use axum::http::Response;
+    let project = create_project(&payload.name, &payload.description);
+    match state.repo.save(project) {
+        Ok(_) => Response::builder()
+            .status(StatusCode::CREATED)
+            .body(Body::from("Project created successfully"))
+            .unwrap(),
+        Err(e) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(e.to_string()))
+            .unwrap(),
+    }
 }
