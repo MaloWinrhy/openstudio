@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
-use core::models::project::Project;
-use core::repositories::project_repository::ProjectRepository;
+use openstudio_core::models::project::Project;
+use openstudio_core::repositories::project_repository::ProjectRepository;
 
 #[derive(Clone, Default)]
 pub struct InMemoryProjectRepository {

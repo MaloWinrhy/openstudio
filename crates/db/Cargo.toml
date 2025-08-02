@@ -5,5 +5,5 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
-core = { path = "../core" }
+openstudio-core = { path = "../openstudio-core" }
 uuid = "1.17.0"
