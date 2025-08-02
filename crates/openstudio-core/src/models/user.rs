@@ -8,7 +8,10 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub password: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

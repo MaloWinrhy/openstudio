@@ -43,8 +43,8 @@ async fn main() {
         .merge(member_api_routes)
         .merge(auth_api_routes);
 
-    let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
-    println!("🚀 API running at http://127.0.0.1:3000");
+    let listener = TcpListener::bind("127.0.0.1:3001").await.unwrap();
+    println!("🚀 API running at http://127.0.0.1:3001");
 
     serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await

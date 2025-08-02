@@ -15,6 +15,15 @@ pub struct LoginInput {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct RegisterInput {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+}
+
 #[derive(Serialize, Deserialize)]
 struct Claims {
     sub: String,
@@ -31,6 +40,7 @@ pub struct AuthState {
 pub fn auth_routes() -> Router<AuthState> {
     Router::new()
         .route("/login", post(login))
+        .route("/register", post(register))
         .route("/refresh", post(refresh_token))
 }
 
@@ -152,6 +162,100 @@ async fn login(
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
             .body(Body::from("Invalid credentials"))
+            .unwrap()
+    }
+}
+
+async fn register(
+    State(state): State<AuthState>,
+    Json(input): Json<RegisterInput>,
+) -> axum::response::Response {
+    use axum::body::Body;
+    use axum::http::Response;
+    use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
+    use rand_core::OsRng;
+    
+    // Vérifier si l'utilisateur existe déjà
+    let existing_user = state
+        .repo
+        .list_users()
+        .into_iter()
+        .find(|u| u.username == input.username || u.email == input.email);
+    
+    if existing_user.is_some() {
+        return Response::builder()
+            .status(StatusCode::CONFLICT)
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"error": "User already exists"}"#))
+            .unwrap();
+    }
+    
+    // Hasher le mot de passe
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let password_hash = argon2.hash_password(input.password.as_bytes(), &salt);
+    
+    if let Ok(password_hash) = password_hash {
+        // Créer le nouvel utilisateur
+        let new_user = User {
+            id: uuid::Uuid::new_v4(),
+            username: input.username,
+            email: input.email,
+            password: password_hash.to_string(),
+            first_name: input.first_name,
+            last_name: input.last_name,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        
+        // Ajouter l'utilisateur au repository
+        let created_user = state.repo.create_user(new_user);
+        
+        // Générer les tokens
+        let claims = Claims {
+            sub: created_user.id.to_string(),
+            email: created_user.email.clone(),
+            exp: (chrono::Utc::now().timestamp() + 3600) as usize,
+        };
+        let access_token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+        ).unwrap();
+        
+        let refresh_claims = Claims {
+            sub: created_user.id.to_string(),
+            email: created_user.email.clone(),
+            exp: (chrono::Utc::now().timestamp() + 7 * 24 * 3600) as usize,
+        };
+        let refresh_token = encode(
+            &Header::default(),
+            &refresh_claims,
+            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+        ).unwrap();
+        
+        let response_data = serde_json::json!({
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "user": {
+                "id": created_user.id,
+                "username": created_user.username,
+                "email": created_user.email,
+                "first_name": created_user.first_name,
+                "last_name": created_user.last_name
+            }
+        });
+        
+        Response::builder()
+            .status(StatusCode::CREATED)
+            .header("content-type", "application/json")
+            .body(Body::from(response_data.to_string()))
+            .unwrap()
+    } else {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"error": "Failed to hash password"}"#))
             .unwrap()
     }
 }

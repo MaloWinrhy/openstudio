@@ -34,4 +34,17 @@ impl InMemoryUserRepo {
         let mut members = self.members.lock().unwrap();
         members.retain(|m| !(m.project_id == project_id && m.user_id == user_id));
     }
+    
+    pub fn create_user(&self, user: User) -> User {
+        self.users.lock().unwrap().insert(user.id, user.clone());
+        user
+    }
+    
+    pub fn find_by_email(&self, email: &str) -> Option<User> {
+        self.users.lock().unwrap().values().find(|u| u.email == email).cloned()
+    }
+    
+    pub fn find_by_username(&self, username: &str) -> Option<User> {
+        self.users.lock().unwrap().values().find(|u| u.username == username).cloned()
+    }
 }

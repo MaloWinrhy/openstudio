@@ -36,7 +36,6 @@ pub struct UserState {
 pub fn user_routes() -> Router<UserState> {
     Router::new()
         .route("/users", post(create_user))
-        .route("/register", post(create_user))
         .route("/users", get(list_users_authenticated))
         .route("/users/{id}", get(get_user_by_id_authenticated))
 }
@@ -56,7 +55,10 @@ async fn create_user(
         username: input.username,
         email: input.email,
         password: password_hash,
+        first_name: None,
+        last_name: None,
         created_at: Utc::now(),
+        updated_at: Utc::now(),
     };
     state.repo.save_user(user);
     Response::builder()
