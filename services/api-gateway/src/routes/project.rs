@@ -12,7 +12,8 @@ use core::models::project::Project;
 use uuid;
 use axum::response::IntoResponse;
 
-// Input pour la mise à jour d'un projet
+
+// --- STRUCTS ---
 #[derive(Deserialize)]
 pub struct UpdateProjectInput {
     pub name: Option<String>,
@@ -32,18 +33,39 @@ pub struct AppState {
     pub repo: Arc<dyn ProjectRepository + Send + Sync + 'static>,
 }
 
+// --- ROUTER ---
 pub fn project_routes() -> Router<AppState> {
     Router::new()
         .route("/projects", post(handle_create_project))
         .route("/projects", get(list_projects))
         .route("/projects/{id}", get(get_project_by_id))
-        // DELETE /projects/{id} → supprimer un projet par son id
-        // .route("/projects/{id}", axum::routing::delete(delete_project_by_id))
-        // PUT /projects/{id} → mettre à jour un projet par son id
+        .route("/projects/{id}", axum::routing::delete(delete_project_by_id))
         .route("/projects/{id}", axum::routing::put(update_project_by_id))
 }
 
-// Handler PUT /projects/:id
+// --- HANDLERS ---
+async fn delete_project_by_id(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> axum::response::Response {
+    use axum::body::Body;
+    use axum::http::Response;
+    match state.repo.delete(id) {
+        Ok(true) => Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from("Project deleted"))
+            .unwrap(),
+        Ok(false) => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from("Project not found"))
+            .unwrap(),
+        Err(_) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from("Internal server error"))
+            .unwrap(),
+    }
+}
+
 async fn update_project_by_id(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -51,7 +73,6 @@ async fn update_project_by_id(
 ) -> axum::response::Response {
     use axum::body::Body;
     use axum::http::Response;
-    // 1. Cherche le projet existant
     let existing = match state.repo.get_by_id(id) {
         Ok(Some(p)) => p,
         Ok(None) => {
@@ -75,7 +96,6 @@ async fn update_project_by_id(
         visibility: input.visibility.unwrap_or(existing.visibility),
         status: input.status.unwrap_or(existing.status),
     };
-    // 3. Met à jour dans le repo
     match state.repo.update(updated) {
         Ok(true) => Response::builder()
             .status(StatusCode::OK)
@@ -92,8 +112,6 @@ async fn update_project_by_id(
     }
 }
 
-
-// Handler GET /projects/:id
 async fn get_project_by_id(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -123,7 +141,6 @@ async fn get_project_by_id(
         }
     }
 }
-
 
 async fn list_projects(
     State(state): State<AppState>
