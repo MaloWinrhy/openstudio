@@ -3,6 +3,8 @@ use crate::routes::member::{MemberState, member_routes};
 use axum::{Router, serve};
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tower_http::cors::{CorsLayer, Any};
+use tower::ServiceBuilder;
 use openstudio_core::repositories::in_memory::InMemoryProjectRepo;
 use openstudio_core::repositories::in_memory_issue::InMemoryIssueRepo;
 mod routes;
@@ -37,11 +39,18 @@ async fn main() {
     };
     let auth_api_routes = auth_routes().with_state(auth_state.clone());
 
+    // Configure CORS
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = api_routes
         .merge(issue_api_routes)
         .merge(user_api_routes)
         .merge(member_api_routes)
-        .merge(auth_api_routes);
+        .merge(auth_api_routes)
+        .layer(cors);
 
     let listener = TcpListener::bind("127.0.0.1:3001").await.unwrap();
     println!("🚀 API running at http://127.0.0.1:3001");

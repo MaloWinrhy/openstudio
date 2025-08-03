@@ -113,12 +113,12 @@ async fn login(
 ) -> axum::response::Response {
     use axum::body::Body;
     use axum::http::Response;
-    // Recherche d'un user par username ET email (simple)
+    // Recherche d'un user par email OU username
     let user = state
         .repo
         .list_users()
         .into_iter()
-        .find(|u| u.username == input.username && u.email == input.email);
+        .find(|u| u.email == input.email || u.username == input.username);
     if let Some(user) = user {
         let parsed_hash = PasswordHash::new(&user.password);
         if let Ok(parsed_hash) = parsed_hash {
